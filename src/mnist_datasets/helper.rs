@@ -3,7 +3,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
-
 static IMG_MAGIC_NUMBER: u32 = 0x0000_0803;
 static LBL_MAGIC_NUMBER: u32 = 0x0000_0801;
 static ROWS: usize = 28;
@@ -85,7 +84,6 @@ pub fn images(path: &Path, expected_length: u32) -> Vec<u8> {
         COLS == cols,
         format!("Expected cols length of {} got {}.", COLS, cols)
     );
-// Convert `file` from a Vec to a slice.
-file.to_vec()
+    // Convert `file` from a Vec to a slice.
+    file.to_vec()
 }
-

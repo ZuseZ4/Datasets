@@ -1,6 +1,6 @@
-use ndarray::Axis;
 #[allow(unused_imports)]
 use datasets::{mnist, mnist_fashion};
+use ndarray::Axis;
 
 pub fn main() {
     let (train_size, test_size, rows, cols) = (60_000, 10_000, 28, 28);
@@ -12,7 +12,7 @@ pub fn main() {
         tst_img,
         tst_lbl: _,
         ..
-    } = mnist_fashion::new();
+    } = mnist_fashion::new_normalized();
     assert_eq!(trn_img.shape(), &[train_size, rows, cols]);
     assert_eq!(tst_img.shape(), &[test_size, rows, cols]);
 

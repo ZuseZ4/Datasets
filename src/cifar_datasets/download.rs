@@ -1,4 +1,5 @@
 #[cfg(feature = "download")]
+
 extern crate flate2;
 extern crate reqwest;
 
@@ -6,8 +7,9 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
-const BASE_URL: &str = "http://yann.lecun.com/exdb/mnist";
-const FASHION_BASE_URL: &str = "http://fashion-mnist.s3-website.eu-central-1.amazonaws.com";
+
+
+const BASE_URL: &str = "https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz";
 const ARCHIVE_TRAIN_IMAGES: &str = "train-images-idx3-ubyte.gz";
 const ARCHIVE_TRAIN_LABELS: &str = "train-labels-idx1-ubyte.gz";
 const ARCHIVE_TEST_IMAGES: &str = "t10k-images-idx3-ubyte.gz";

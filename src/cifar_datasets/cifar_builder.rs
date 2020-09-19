@@ -1,15 +1,19 @@
-
-//mod test;
-
-
 use ndarray::prelude::*;
+use ndarray::{Array2, Array4};
 
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 
+pub struct Data {
+    pub trn_img: Array4<f32>,
+    pub trn_lbl: Array2<f32>,
+    pub tst_img: Array4<f32>,
+    pub tst_lbl: Array2<f32>,
+}
+
 #[derive(Debug)]
-pub struct Cifar10<'a> {
+struct Cifar10<'a> {
     base_path: &'a str,
     show_images: bool,
     encode_one_hot: bool,
@@ -68,41 +72,43 @@ impl<'a> Cifar10<'a> {
         self
     }
 
-
     pub fn build(self) -> Result<(Array4<u8>, Array2<u8>, Array4<u8>, Array2<u8>), Box<dyn Error>> {
         let (train_data, train_labels) = get_data(&self, "train")?;
         let (test_data, test_labels) = get_data(&self, "test")?;
 
         Ok((train_data, train_labels, test_data, test_labels))
-
     }
-
-    pub fn build_as_flat_f32(self) -> Result<(Array2<f32>, Array2<f32>, Array2<f32>, Array2<f32>), Box<dyn Error>> {
-        
-        let (train_data, train_labels) = get_data(&self, "train")?;
-        let (test_data, test_labels) = get_data(&self, "test")?;
-        
-        let train_labels = train_labels.mapv(|x| x as f32);
-        let train_data = train_data
-            .into_shape((self.num_records_train, 32 * 32 * 3))?
-            .mapv(|x| x as f32 / 256.);
-        let test_labels = test_labels.mapv(|x| x as f32);
-        let test_data = test_data
-            .into_shape((self.num_records_test, 32 * 32 * 3))?
-            .mapv(|x| x as f32 / 256.);
-
-        Ok((train_data, train_labels, test_data, test_labels))
+}
+pub fn new() -> Data {
+    let (trn_img, trn_lbl, tst_img, tst_lbl) = Cifar10::default()
+        .build()
+        .expect("Failed to build CIFAR-10 data");
+    let trn_img = trn_img.mapv(|x| x as f32);
+    let trn_lbl = trn_lbl.mapv(|x| x as f32);
+    let tst_img = tst_img.mapv(|x| x as f32);
+    let tst_lbl = tst_lbl.mapv(|x| x as f32);
+    Data {
+        trn_img,
+        trn_lbl,
+        tst_img,
+        tst_lbl,
     }
+}
 
-    pub fn new() -> (Array4<f32>, Array2<f32>, Array4<f32>, Array2<f32>) {
-        let (trn_img, trn_lbl, tst_img, tst_lbl) = Cifar10::default().build().expect("Failed to build CIFAR-10 data");
-        let trn_img = trn_img.mapv(|x| x as f32);
-        let trn_lbl = trn_lbl.mapv(|x| x as f32);
-        let tst_img = tst_img.mapv(|x| x as f32);
-        let tst_lbl = tst_lbl.mapv(|x| x as f32);
-        (trn_img, trn_lbl, tst_img, tst_lbl)
+pub fn new_normalized() -> Data {
+    let (trn_img, trn_lbl, tst_img, tst_lbl) = Cifar10::default()
+        .build()
+        .expect("Failed to build CIFAR-10 data");
+    let trn_img = trn_img.mapv(|x| x as f32 / 256.);
+    let trn_lbl = trn_lbl.mapv(|x| x as f32);
+    let tst_img = tst_img.mapv(|x| x as f32 / 256.);
+    let tst_lbl = tst_lbl.mapv(|x| x as f32);
+    Data {
+        trn_img,
+        trn_lbl,
+        tst_img,
+        tst_lbl,
     }
-    
 }
 
 fn get_data(config: &Cifar10, dataset: &str) -> Result<(Array4<u8>, Array2<u8>), Box<dyn Error>> {
@@ -146,6 +152,20 @@ fn get_data(config: &Cifar10, dataset: &str) -> Result<(Array4<u8>, Array2<u8>),
     }
     let data: Array4<u8> = Array::from_shape_vec((num_records, 3, 32, 32), data)?;
 
-
     Ok((data, labels))
+}
+
+pub mod cifar10 {
+    pub use super::Data;
+    pub fn new() -> Data {
+        super::new()
+    }
+    pub fn new_normalized() -> Data {
+        super::new_normalized()
+    }
+
+    /*#[cfg(feature = "download")]
+    pub fn download_and_extract() {
+        super::download::download_and_extract(BASE_PATH, false).unwrap();
+    }*/
 }
