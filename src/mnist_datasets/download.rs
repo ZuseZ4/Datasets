@@ -1,10 +1,10 @@
-#[cfg(feature = "download")]
-extern crate flate2;
-extern crate reqwest;
 
+use std::{fs, io};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::{fs, io};
+
+use crate::download_helper::downloader;
+
 
 const BASE_URL: &str = "http://yann.lecun.com/exdb/mnist";
 const FASHION_BASE_URL: &str = "http://fashion-mnist.s3-website.eu-central-1.amazonaws.com";
@@ -19,55 +19,15 @@ const ARCHIVES_TO_DOWNLOAD: &[&str] = &[
     ARCHIVE_TEST_LABELS,
 ];
 
-pub fn download_and_extract(base_path: &str, use_fashion_data: bool) -> Result<(), String> {
+pub fn download_and_extract(base_path: &str, use_fashion_dataset: bool) -> Result<(), String> {
+    let archive = if use_fashion_dataset {FASHION_BASE_URL} else {BASE_URL};
+
+    println!("Attempting to download and extract {}...", archive);
+    downloader::download(&base_path, BASE_URL.to_string(), ARCHIVES_TO_DOWNLOAD.to_vec()).unwrap();
     let download_dir = PathBuf::from(base_path);
-    if !download_dir.exists() {
-        println!(
-            "Download directory {} does not exists. Creating....",
-            download_dir.display()
-        );
-        fs::create_dir_all(&download_dir).or_else(|e| {
-            Err(format!(
-                "Failed to create directory {:?}: {:?}",
-                download_dir, e
-            ))
-        })?;
-    }
     for archive in ARCHIVES_TO_DOWNLOAD {
-        println!("Attempting to download and extract {}...", archive);
-        download(&archive, &download_dir, use_fashion_data)?;
+        println!("Attempting to extract {}...", archive);
         extract(&archive, &download_dir)?;
-    }
-    Ok(())
-}
-
-fn download(archive: &str, download_dir: &Path, use_fashion_data: bool) -> Result<(), String> {
-    let url = match use_fashion_data {
-        false => format!("{}/{}", BASE_URL, archive),
-        true => format!("{}/{}", FASHION_BASE_URL, archive),
-    };
-
-    let file_name = download_dir.join(&archive);
-    if file_name.exists() {
-        println!(
-            "  File {:?} already exists, skipping downloading.",
-            file_name
-        );
-    } else {
-        println!("  Downloading {} to {:?}...", url, download_dir);
-        let f = fs::File::create(&file_name)
-            .or_else(|e| Err(format!("Failed to create file {:?}: {:?}", file_name, e)))?;
-        let mut writer = io::BufWriter::new(f);
-        let mut response =
-            reqwest::blocking::get(&url).expect(format!("Failed to download {:?}", url).as_str());
-
-        let _ = io::copy(&mut response, &mut writer).or_else(|e| {
-            Err(format!(
-                "Failed to to write to file {:?}: {:?}",
-                file_name, e
-            ))
-        })?;
-        println!("  Downloading or {} to {:?} done!", archive, download_dir);
     }
     Ok(())
 }

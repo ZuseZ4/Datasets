@@ -5,6 +5,9 @@ use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 
+#[cfg(feature ="download")]
+use super::download;
+
 pub struct Data {
     pub trn_img: Array4<f32>,
     pub trn_lbl: Array2<f32>,
@@ -12,160 +15,105 @@ pub struct Data {
     pub tst_lbl: Array2<f32>,
 }
 
-#[derive(Debug)]
-struct Cifar10<'a> {
-    base_path: &'a str,
-    show_images: bool,
-    encode_one_hot: bool,
-    training_bin_paths: Vec<&'a str>,
-    testing_bin_paths: Vec<&'a str>,
-    num_records_train: usize,
-    num_records_test: usize,
+
+fn read_into_buffer(bin_paths: Vec<&str>, base_path: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+  let mut buffer: Vec<u8> = Vec::new();
+  for bin in &bin_paths {
+      let full_cifar_path = [base_path, bin].join("");
+
+      let mut f = File::open(full_cifar_path)?;
+
+      // read the whole file
+      let mut temp_buffer: Vec<u8> = Vec::new();
+      f.read_to_end(&mut temp_buffer)?;
+      buffer.extend(&temp_buffer);
+  }
+  Ok(buffer)
 }
 
-impl<'a> Cifar10<'a> {
-    pub fn default() -> Self {
-        Cifar10 {
-            base_path: "data/cifar-10-batches-bin/",
-            show_images: false,
-            encode_one_hot: true,
-            training_bin_paths: vec![
-                "data_batch_1.bin",
-                "data_batch_2.bin",
-                "data_batch_3.bin",
-                "data_batch_4.bin",
-                "data_batch_5.bin",
-            ],
-            testing_bin_paths: vec!["test_batch.bin"],
-            num_records_train: 50_000,
-            num_records_test: 10_000,
-        }
-    }
+fn buffer2data(buffer: Vec<u8>, num_records: usize) -> Result<(Array4<u8>, Array2<f32>), Box<dyn Error>> {
+  let mut labels: Array2<f32> = Array2::zeros((num_records, 10));
+  labels[[0, buffer[0] as usize]] = 1.;
+  let mut data: Vec<u8> = Vec::with_capacity(num_records * 3072);
 
-    pub fn base_path(mut self, base_path: &'a str) -> Self {
-        self.base_path = base_path;
-        self
-    }
+  for num in 0..num_records {
+      // println!("Through image #{}/{}", num, num_records);
+      let base = num * (3073);
+      let label = buffer[base];
+      if label > 9 {
+          panic!(format!(
+              "Label is {}, which is inconsistent with the CIFAR-10 scheme",
+              label
+          ));
+      }
+      labels[[num, label as usize]] = 1.;
+      data.extend(&buffer[base + 1..=base + 3072]);
+  }
+  let data: Array4<u8> = Array::from_shape_vec((num_records, 3, 32, 32), data)?;
 
-    pub fn encode_one_hot(mut self, encode_one_hot: bool) -> Self {
-        self.encode_one_hot = encode_one_hot;
-        self
-    }
-
-    pub fn training_bin_paths(mut self, training_bin_paths: Vec<&'a str>) -> Self {
-        self.training_bin_paths = training_bin_paths;
-        self
-    }
-
-    pub fn testing_bin_paths(mut self, testing_bin_paths: Vec<&'a str>) -> Self {
-        self.testing_bin_paths = testing_bin_paths;
-        self
-    }
-
-    pub fn num_records_train(mut self, num_records_train: usize) -> Self {
-        self.num_records_train = num_records_train;
-        self
-    }
-
-    pub fn num_records_test(mut self, num_records_test: usize) -> Self {
-        self.num_records_test = num_records_test;
-        self
-    }
-
-    pub fn build(self) -> Result<(Array4<u8>, Array2<u8>, Array4<u8>, Array2<u8>), Box<dyn Error>> {
-        let (train_data, train_labels) = get_data(&self, "train")?;
-        let (test_data, test_labels) = get_data(&self, "test")?;
-
-        Ok((train_data, train_labels, test_data, test_labels))
-    }
-}
-pub fn new() -> Data {
-    let (trn_img, trn_lbl, tst_img, tst_lbl) = Cifar10::default()
-        .build()
-        .expect("Failed to build CIFAR-10 data");
-    let trn_img = trn_img.mapv(|x| x as f32);
-    let trn_lbl = trn_lbl.mapv(|x| x as f32);
-    let tst_img = tst_img.mapv(|x| x as f32);
-    let tst_lbl = tst_lbl.mapv(|x| x as f32);
-    Data {
-        trn_img,
-        trn_lbl,
-        tst_img,
-        tst_lbl,
-    }
+  Ok((data, labels))
 }
 
-pub fn new_normalized() -> Data {
-    let (trn_img, trn_lbl, tst_img, tst_lbl) = Cifar10::default()
-        .build()
-        .expect("Failed to build CIFAR-10 data");
-    let trn_img = trn_img.mapv(|x| x as f32 / 256.);
-    let trn_lbl = trn_lbl.mapv(|x| x as f32);
-    let tst_img = tst_img.mapv(|x| x as f32 / 256.);
-    let tst_lbl = tst_lbl.mapv(|x| x as f32);
-    Data {
-        trn_img,
-        trn_lbl,
-        tst_img,
-        tst_lbl,
-    }
-}
+fn get_dataset(base_path: &str, normalized: bool) -> Data {
+  let bin_paths_trn = vec![
+      "data_batch_1.bin",
+      "data_batch_2.bin",
+      "data_batch_3.bin",
+      "data_batch_4.bin",
+      "data_batch_5.bin",
+  ];
+  let bin_paths_tst = vec!["test_batch.bin"];
+  let num_records_trn = 50_000;
+  let num_records_tst = 10_000;
 
-fn get_data(config: &Cifar10, dataset: &str) -> Result<(Array4<u8>, Array2<u8>), Box<dyn Error>> {
-    let mut buffer: Vec<u8> = Vec::new();
+  let buffer_trn = read_into_buffer(bin_paths_trn, base_path).unwrap(); 
+  let buffer_tst = read_into_buffer(bin_paths_tst, base_path).unwrap();
+  //println!("- Done parsing binary files to Vec<u8>");
 
-    let (bin_paths, num_records) = match dataset {
-        "train" => (config.training_bin_paths.clone(), config.num_records_train),
-        "test" => (config.testing_bin_paths.clone(), config.num_records_test),
-        _ => panic!("An unexpected value was passed for which dataset should be parsed"),
-    };
-
-    for bin in &bin_paths {
-        let full_cifar_path = [config.base_path, bin].join("");
-        // println!("{}", full_cifar_path);
-
-        let mut f = File::open(full_cifar_path)?;
-
-        // read the whole file
-        let mut temp_buffer: Vec<u8> = Vec::new();
-        f.read_to_end(&mut temp_buffer)?;
-        buffer.extend(&temp_buffer);
-    }
-
-    //println!("- Done parsing binary files to Vec<u8>");
-    let mut labels: Array2<u8> = Array2::zeros((num_records, 10));
-    labels[[0, buffer[0] as usize]] = 1;
-    let mut data: Vec<u8> = Vec::with_capacity(num_records * 3072);
-
-    for num in 0..num_records {
-        // println!("Through image #{}/{}", num, num_records);
-        let base = num * (3073);
-        let label = buffer[base];
-        if label > 9 {
-            panic!(format!(
-                "Label is {}, which is inconsistent with the CIFAR-10 scheme",
-                label
-            ));
-        }
-        labels[[num, label as usize]] = 1;
-        data.extend(&buffer[base + 1..=base + 3072]);
-    }
-    let data: Array4<u8> = Array::from_shape_vec((num_records, 3, 32, 32), data)?;
-
-    Ok((data, labels))
+  let (trn_img, trn_lbl) = buffer2data(buffer_trn, num_records_trn).unwrap();
+  let (tst_img, tst_lbl) = buffer2data(buffer_tst, num_records_tst).unwrap();
+  
+  let mut trn_img = trn_img.mapv(|x| x as f32);
+  let mut tst_img = tst_img.mapv(|x| x as f32);
+  if normalized {
+      trn_img.mapv_inplace(|x| x / 256.);
+      tst_img.mapv_inplace(|x| x / 256.);
+  }
+  Data {
+      trn_img,
+      trn_lbl,
+      tst_img,
+      tst_lbl,
+  }
 }
 
 pub mod cifar10 {
     pub use super::Data;
+    static BASE_PATH: &str = "data/cifar-10-batches-bin";
     pub fn new() -> Data {
-        super::new()
+        super::get_dataset(BASE_PATH, false)
     }
     pub fn new_normalized() -> Data {
-        super::new_normalized()
+        super::get_dataset(BASE_PATH, true)
     }
 
-    /*#[cfg(feature = "download")]
+    #[cfg(feature = "download")]
     pub fn download_and_extract() {
         super::download::download_and_extract(BASE_PATH, false).unwrap();
-    }*/
+    }
+}
+pub mod cifar100 {
+    pub use super::Data;
+    static BASE_PATH: &str = "data/cifar-100-binary";
+    pub fn new() -> Data {
+        super::get_dataset(BASE_PATH, false)
+    }
+    pub fn new_normalized() -> Data {
+        super::get_dataset(BASE_PATH, true)
+    }
+
+    #[cfg(feature = "download")]
+    pub fn download_and_extract() {
+        super::download::download_and_extract(BASE_PATH, true).unwrap();
+    }
 }
