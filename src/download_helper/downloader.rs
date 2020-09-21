@@ -19,24 +19,22 @@ pub fn download(base_path: &str, base_url: String, online_files: Vec<&str>) -> R
         })?;
     }
 
-  //parallelize?
-  for file in online_files.iter() {
-    let res = single_download(&download_dir, base_url.clone(), file);
-    match res {
-      Ok(()) => continue,
-      Err(e) => eprintln!("{}",e),
+    //parallelize?
+    for file in online_files.iter() {
+        let res = single_download(&download_dir, base_url.clone(), file);
+        match res {
+            Ok(()) => continue,
+            Err(e) => eprintln!("{}", e),
+        }
     }
-  }
-  Ok(())
+    Ok(())
 }
 
-
 fn single_download(download_dir: &Path, base_url: String, archive: &str) -> Result<(), String> {
-
     let url = format!("{}/{}", base_url, archive);
 
     let file_name = download_dir.join(&archive);
-    
+
     if file_name.exists() {
         println!(
             "  File {:?} already exists, skipping downloading.",

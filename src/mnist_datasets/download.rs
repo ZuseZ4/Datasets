@@ -1,10 +1,8 @@
-
-use std::{fs, io};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::{fs, io};
 
 use crate::download_helper::downloader;
-
 
 const BASE_URL: &str = "http://yann.lecun.com/exdb/mnist";
 const FASHION_BASE_URL: &str = "http://fashion-mnist.s3-website.eu-central-1.amazonaws.com";
@@ -20,10 +18,19 @@ const ARCHIVES_TO_DOWNLOAD: &[&str] = &[
 ];
 
 pub fn download_and_extract(base_path: &str, use_fashion_dataset: bool) -> Result<(), String> {
-    let archive = if use_fashion_dataset {FASHION_BASE_URL} else {BASE_URL};
+    let archive = if use_fashion_dataset {
+        FASHION_BASE_URL
+    } else {
+        BASE_URL
+    };
 
     println!("Attempting to download and extract {}...", archive);
-    downloader::download(&base_path, BASE_URL.to_string(), ARCHIVES_TO_DOWNLOAD.to_vec()).unwrap();
+    downloader::download(
+        &base_path,
+        BASE_URL.to_string(),
+        ARCHIVES_TO_DOWNLOAD.to_vec(),
+    )
+    .unwrap();
     let download_dir = PathBuf::from(base_path);
     for archive in ARCHIVES_TO_DOWNLOAD {
         println!("Attempting to extract {}...", archive);

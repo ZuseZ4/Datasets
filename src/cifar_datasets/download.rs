@@ -1,18 +1,20 @@
 use tar::Archive;
 
-use std::{fs, io};
 use std::path::{Path, PathBuf};
+use std::{fs, io};
 
 use crate::download_helper::downloader;
-
 
 const BASE_URL: &str = "https://www.cs.toronto.edu/~kriz";
 const ARCHIVE: &str = "cifar-10-binary.tar.gz";
 const ARCHIVE_LARGE: &str = "cifar-100-binary.tar.gz";
 
 pub fn download_and_extract(base_path: &str, use_large_dataset: bool) -> Result<(), String> {
-    
-    let archive = if use_large_dataset {ARCHIVE_LARGE} else {ARCHIVE};
+    let archive = if use_large_dataset {
+        ARCHIVE_LARGE
+    } else {
+        ARCHIVE
+    };
 
     println!("Attempting to download and extract {}...", archive);
     downloader::download(&base_path, BASE_URL.to_string(), vec![archive]).unwrap();
